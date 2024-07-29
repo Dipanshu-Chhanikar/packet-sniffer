@@ -177,24 +177,25 @@ class PacketSnifferGUI:
 
         if packet.haslayer(TCP):
             details.append(f"TCP Layer:\n  Source Port: {packet[TCP].sport}\n  Destination Port: {packet[TCP].dport}\n  Sequence Number: {packet[TCP].seq}\n  Acknowledgment Number: {packet[TCP].ack}\n  Data Offset: {packet[TCP].dataofs}\n  Reserved: {packet[TCP].reserved}\n  Flags: {packet[TCP].flags}\n  Window: {packet[TCP].window}\n  Checksum: {packet[TCP].chksum}\n  Urgent Pointer: {packet[TCP].urgptr}\n")
-        
-            if packet.haslayer(Raw):
-                payload = packet[Raw].load
-                if packet.haslayer(HTTPRequest) or packet.haslayer(HTTPResponse):
-                    details.append(self.parse_http_payload(payload.decode(errors='ignore')))
-                else:
-                    details.append(self.parse_raw_payload(payload))
+
+        if packet.haslayer(Raw):
+            payload = packet[Raw].load
+            if packet.haslayer(HTTPRequest) or packet.haslayer(HTTPResponse):
+                details.append(self.parse_http_payload(payload.decode(errors='ignore')))
+            else:
+                details.append(self.parse_raw_payload(payload))
 
         if packet.haslayer(UDP):
             details.append(f"UDP Layer:\n  Source Port: {packet[UDP].sport}\n  Destination Port: {packet[UDP].dport}\n  Length: {packet[UDP].len}\n  Checksum: {packet[UDP].chksum}\n")
-            
-            if packet.haslayer(DNS):
-                details.append(self.parse_dns_payload(packet[Raw].load))
+        
+        if packet.haslayer(Raw) and packet.haslayer(DNS):
+            details.append(self.parse_dns_payload(packet[Raw].load))
 
         if packet.haslayer(Raw) and not packet.haslayer(TCP):
             details.append(f"Raw Data:\n  {self.parse_raw_payload(packet[Raw].load)}\n")
 
         return "\n".join(details)
+
 
     def parse_http_payload(self, payload):
         try:
