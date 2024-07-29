@@ -3,14 +3,25 @@ from tkinter import ttk
 from scapy.all import sniff, IP, TCP, UDP, Raw, DNS
 from scapy.layers.http import HTTPRequest, HTTPResponse
 import threading
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.animation import FuncAnimation
+import time
+from collections import defaultdict
 
 class PacketSnifferGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Advanced Packet Sniffer")
-        
-        self.sniffing = False
 
+        self.sniffing = False
+        self.packet_count = 0
+        self.data_rate = 0  # Bytes per second
+        self.error_count = 0
+
+        self.packet_sizes = []
+        self.timestamps = []
+        
         self.create_widgets()
         
     def create_widgets(self):
@@ -78,9 +89,37 @@ class PacketSnifferGUI:
 
         self.status_label = ttk.Label(self.root, text="Status: Ready")
         self.status_label.pack(pady=5)
+        
+        # Statistics Frame
+        self.stats_frame = ttk.LabelFrame(self.root, text="Traffic Statistics")
+        self.stats_frame.pack(pady=10, fill="both", expand="yes")
+        
+        self.packet_count_label = ttk.Label(self.stats_frame, text="Packet Count: 0")
+        self.packet_count_label.pack()
+        
+        self.data_rate_label = ttk.Label(self.stats_frame, text="Data Rate: 0 B/s")
+        self.data_rate_label.pack()
+        
+        self.error_count_label = ttk.Label(self.stats_frame, text="Error Count: 0")
+        self.error_count_label.pack()
+
+        # Graph Frame
+        self.graph_frame = ttk.LabelFrame(self.root, text="Network Traffic")
+        self.graph_frame.pack(pady=10, fill="both", expand="yes")
+        
+        self.fig, self.ax = plt.subplots()
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.graph_frame)
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        
+        self.ani = FuncAnimation(self.fig, self.update_graph, interval=1000, cache_frame_data=False)
 
     def start_sniffing(self):
         self.sniffing = True
+        self.packet_count = 0
+        self.data_rate = 0
+        self.error_count = 0
+        self.packet_sizes = []
+        self.timestamps = []
         self.start_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
         self.status_label.config(text="Status: Sniffing...")
@@ -140,9 +179,20 @@ class PacketSnifferGUI:
 
     def packet_callback(self, packet):
         if self.sniffing:
+            self.packet_count += 1
+            if packet.haslayer(Raw):
+                self.packet_sizes.append(len(packet[Raw].load))
+                self.timestamps.append(time.time())
+            
             log_message = self.get_packet_summary(packet)
             self.log_message(log_message)
             self.show_packet_details(packet)
+
+            # Update traffic statistics
+            self.data_rate = sum(self.packet_sizes[-10:]) / 10 if self.packet_sizes else 0
+            self.packet_count_label.config(text=f"Packet Count: {self.packet_count}")
+            self.data_rate_label.config(text=f"Data Rate: {self.data_rate:.2f} B/s")
+            self.error_count_label.config(text=f"Error Count: {self.error_count}")
 
     def get_packet_summary(self, packet):
         if packet.haslayer(IP):
@@ -153,13 +203,12 @@ class PacketSnifferGUI:
                 proto = "TCP"
             elif packet.haslayer(UDP):
                 proto = "UDP"
-            return f"Packet from {ip_src} to {ip_dst} | Protocol: {proto}"
+            return f"{ip_src} -> {ip_dst} [{proto}]"
         return "Unknown packet"
 
     def log_message(self, message):
         self.log_area.config(state=tk.NORMAL)
         self.log_area.insert(tk.END, message + "\n")
-        self.log_area.yview(tk.END)
         self.log_area.config(state=tk.DISABLED)
 
     def show_packet_details(self, packet):
@@ -196,60 +245,55 @@ class PacketSnifferGUI:
 
         return "\n".join(details)
 
-
     def parse_http_payload(self, payload):
         try:
-            # Split headers and body
             headers, body = payload.split(b'\r\n\r\n', 1)
             header_lines = headers.decode(errors='ignore').split('\r\n')
-            
-            # Parse headers
             parsed_headers = '\n'.join(header_lines)
-            
-            # Extract the first line for status or request line
             first_line = header_lines[0]
-            
             return f"HTTP Header:\n{parsed_headers}\n\nHTTP Body:\n{body.decode(errors='ignore')}"
         except ValueError:
-            # If splitting by '\r\n\r\n' fails, the payload might not have a body
             return f"HTTP Data:\n{payload.decode(errors='ignore')}"
 
     def parse_dns_payload(self, payload):
         dns_data = []
         try:
             dns_packet = DNS(payload)
-            
-            if dns_packet.qr == 0:  # DNS Query
+            if dns_packet.qr == 0:
                 dns_data.append(f"Query ID: {dns_packet.id}")
                 dns_data.append(f"Questions: {dns_packet.qdcount}")
                 for query in dns_packet.qd:
                     dns_data.append(f"  Query Name: {query.qname.decode(errors='ignore')}")
-            
-            elif dns_packet.qr == 1:  # DNS Response
+            elif dns_packet.qr == 1:
                 dns_data.append(f"Response ID: {dns_packet.id}")
                 dns_data.append(f"Answers: {dns_packet.ancount}")
                 for answer in dns_packet.an:
                     dns_data.append(f"  Answer Name: {answer.rrname.decode(errors='ignore')}")
                     dns_data.append(f"  Answer Address: {answer.rdata}")
-                    
             return '\n'.join(dns_data)
         except Exception as e:
             return f"DNS Data:\n{payload.decode(errors='ignore')}\nError: {str(e)}"
 
     def parse_raw_payload(self, payload):
         try:
-            # Convert raw data to hexadecimal and ASCII representation
             hex_data = ' '.join(f'{b:02x}' for b in payload)
             ascii_data = ''.join(chr(b) if 32 <= b < 127 else '.' for b in payload)
-            
-            # Format output
             parsed_data = []
             parsed_data.append(f"Hex Data:\n{hex_data}")
             parsed_data.append(f"ASCII Data:\n{ascii_data}")
-            
             return '\n'.join(parsed_data)
         except Exception as e:
             return f"Raw Data:\n{payload.decode(errors='ignore')}\nError: {str(e)}"
+
+    def update_graph(self, frame):
+        self.ax.clear()
+        if self.timestamps and self.packet_sizes:
+            self.ax.plot(self.timestamps, self.packet_sizes, label='Packet Size')
+            self.ax.set_xlabel('Time')
+            self.ax.set_ylabel('Packet Size (bytes)')
+            self.ax.set_title('Network Traffic')
+            self.ax.legend()
+        self.canvas.draw()
 
 if __name__ == "__main__":
     root = tk.Tk()
