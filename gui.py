@@ -69,6 +69,18 @@ class PacketSnifferGUI:
         self.search_button = ttk.Button(self.control_frame, text="Search", command=self.search_logs)
         self.search_button.grid(row=1, column=2, padx=5, pady=5)
 
+        self.graph_type_label = ttk.Label(self.control_frame, text="Graph Type:")
+        self.graph_type_label.grid(row=1, column=3, padx=5, pady=5)
+
+        self.graph_type_var = tk.StringVar()
+        self.graph_type_var.set("Line")
+        self.graph_type_options = ttk.Combobox(self.control_frame, textvariable=self.graph_type_var)
+        self.graph_type_options['values'] = ("Line", "Bar", "Scatter", "Histogram", "Boxplot", "Pie")
+        self.graph_type_options.grid(row=1, column=4, padx=5, pady=5)
+
+        self.update_graph_button = ttk.Button(self.control_frame, text="Update Graph", command=self.update_graph)
+        self.update_graph_button.grid(row=1, column=5, padx=5, pady=5)
+
         # Traffic statistics frame widgets
         self.packet_count_label = ttk.Label(self.stats_frame, text="Packet Count: 0")
         self.packet_count_label.pack(pady=5)
@@ -117,6 +129,10 @@ class PacketSnifferGUI:
         search_text = self.search_var.get()
         self.packet_processing.search_logs(search_text)
 
+    def update_graph(self):
+        self.packet_processing.update_graph(self.ax, self.graph_type_var.get())
+        self.canvas.draw()
+
     def log_message(self, message):
         self.log_area.config(state=tk.NORMAL)
         self.log_area.insert(tk.END, message + "\n")
@@ -130,7 +146,8 @@ class PacketSnifferGUI:
         self.detail_area.config(state=tk.DISABLED)
 
     def update_graph(self, frame):
-        self.packet_processing.update_graph(self.ax)
+        self.packet_processing.update_graph(self.ax, self.graph_type_var.get())
+        self.canvas.draw()
 
     def on_log_click(self, event):
         index = self.log_area.index("@%s,%s" % (event.x, event.y))
@@ -144,3 +161,4 @@ class PacketSnifferGUI:
         packet_data = self.packet_processing.get_packet_by_summary(line_text)
         if packet_data:
             self.show_packet_details(packet_data)
+

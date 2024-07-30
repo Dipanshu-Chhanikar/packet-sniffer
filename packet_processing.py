@@ -1,6 +1,6 @@
 import threading
 import time
-from scapy.all import sniff, IP, TCP, UDP, Raw, DNS, ARP, ICMP
+from scapy.all import sniff
 from filters import get_filter_string
 import tkinter as tk
 from anomaly_detection import AnomalyDetector
@@ -84,12 +84,38 @@ class PacketProcessing:
     def decode_packet(self, packet):
         return str(packet.show(dump=True))
 
-    def update_graph(self, ax):
+    def update_graph(self, ax, graph_type):
         ax.clear()
-        ax.plot(self.timestamps, self.packet_sizes)
-        ax.set_title("Packet Sizes over Time")
-        ax.set_xlabel("Time (s)")
-        ax.set_ylabel("Packet Size (bytes)")
+        if graph_type == "Line":
+            ax.plot(self.timestamps, self.packet_sizes)
+            ax.set_title("Packet Sizes over Time")
+            ax.set_xlabel("Time (s)")
+            ax.set_ylabel("Packet Size (bytes)")
+        elif graph_type == "Bar":
+            ax.bar(self.timestamps, self.packet_sizes)
+            ax.set_title("Packet Sizes over Time")
+            ax.set_xlabel("Time (s)")
+            ax.set_ylabel("Packet Size (bytes)")
+        elif graph_type == "Scatter":
+            ax.scatter(self.timestamps, self.packet_sizes)
+            ax.set_title("Packet Sizes over Time")
+            ax.set_xlabel("Time (s)")
+            ax.set_ylabel("Packet Size (bytes)")
+        elif graph_type == "Histogram":
+            ax.hist(self.packet_sizes, bins=30)
+            ax.set_title("Packet Size Distribution")
+            ax.set_xlabel("Packet Size (bytes)")
+            ax.set_ylabel("Frequency")
+        elif graph_type == "Boxplot":
+            ax.boxplot(self.packet_sizes)
+            ax.set_title("Packet Size Boxplot")
+            ax.set_ylabel("Packet Size (bytes)")
+        elif graph_type == "Pie":
+            sizes = [sum(self.packet_sizes) / len(self.packet_sizes)] * len(self.packet_sizes)
+            labels = [f"Packet {i+1}" for i in range(len(self.packet_sizes))]
+            ax.pie(sizes, labels=labels, autopct='%1.1f%%')
+            ax.set_title("Packet Size Distribution")
+        ax.figure.canvas.draw()
 
     def get_packet_by_summary(self, summary):
         return self.packet_summary_map.get(summary, None)
