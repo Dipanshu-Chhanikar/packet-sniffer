@@ -104,45 +104,58 @@ class PacketProcessing:
 
     def decode_packet(self, packet):
         details = []
+    
+    # Check for IP layer
         if packet.haslayer(IP):
             details.append(f"Source IP: {packet[IP].src}")
             details.append(f"Destination IP: {packet[IP].dst}")
             details.append(f"Protocol: {packet[IP].proto}")
 
+    # Check for TCP layer
         if packet.haslayer(TCP):
             details.append(f"Source Port: {packet[TCP].sport}")
             details.append(f"Destination Port: {packet[TCP].dport}")
-            if packet.haslayer(Raw):
-                try:
-                    payload = packet[Raw].load.decode(errors='ignore')
-                    if payload.startswith("GET") or payload.startswith("POST"):
-                        details.append(f"HTTP Payload: {payload}")
-                except UnicodeDecodeError:
-                    pass
+        if packet.haslayer(Raw):
+            try:
+                payload = packet[Raw].load.decode(errors='ignore')
+                if payload.startswith("GET") or payload.startswith("POST"):
+                    details.append(f"HTTP Payload: {payload}")
+            except UnicodeDecodeError:
+                pass
 
+    # Check for UDP layer
         if packet.haslayer(UDP):
             details.append(f"Source Port: {packet[UDP].sport}")
             details.append(f"Destination Port: {packet[UDP].dport}")
-            if packet.haslayer(DNS):
-                dns = packet[DNS]
-                details.append(f"DNS Query: {dns.qd.qname.decode()}")
+        
+        # Check for DNS layer in UDP
+        if packet.haslayer(DNS):
+            dns = packet[DNS]
+            if dns.qd:
+                details.append(f"DNS Query: {dns.qd.qname.decode(errors='ignore')}")
+            else:
+                details.append("DNS Query: No query section")
 
+    # Check for ARP layer
         if packet.haslayer(ARP):
             arp = packet[ARP]
             details.append(f"ARP Operation: {'Request' if arp.op == 1 else 'Reply'}")
             details.append(f"ARP Source MAC: {arp.hwsrc}")
             details.append(f"ARP Target MAC: {arp.hwdst}")
 
+    # Check for ICMP layer
         if packet.haslayer(ICMP):
             icmp = packet[ICMP]
             details.append(f"ICMP Type: {icmp.type}")
             details.append(f"ICMP Code: {icmp.code}")
 
+    # Check for Raw layer
         if packet.haslayer(Raw):
             payload = packet[Raw].load.decode(errors='ignore')
             details.append(f"Payload: {payload}")
 
         return "\n".join(details)
+
 
     def update_graph(self, ax):
         ax.clear()
