@@ -132,6 +132,7 @@ class PacketSnifferGUI:
         self.detail_area.insert(tk.END, details)
         self.detail_area.config(state=tk.DISABLED)
 
+
     def update_graph(self, frame):
         self.packet_processing.update_graph(self.ax)
 

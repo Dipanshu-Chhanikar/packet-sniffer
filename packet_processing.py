@@ -1,8 +1,8 @@
 import threading
 import time
-from scapy.all import sniff, IP, TCP, UDP, Raw
+from scapy.all import sniff, IP, TCP, UDP, Raw, DNS, ARP, ICMP
 from filters import get_filter_string
-import tkinter as tk  # Add this import
+import tkinter as tk
 
 class PacketProcessing:
     def __init__(self, gui):
@@ -22,7 +22,7 @@ class PacketProcessing:
         self.error_count = 0
         self.packet_sizes = []
         self.timestamps = []
-        self.gui.start_button.config(state=tk.DISABLED)  # Use tk here
+        self.gui.start_button.config(state=tk.DISABLED)
         self.gui.stop_button.config(state=tk.NORMAL)
         self.gui.status_label.config(text="Status: Sniffing...")
         
@@ -31,7 +31,7 @@ class PacketProcessing:
 
     def stop_sniffing(self):
         self.sniffing = False
-        self.gui.start_button.config(state=tk.NORMAL)  # Use tk here
+        self.gui.start_button.config(state=tk.NORMAL)
         self.gui.stop_button.config(state=tk.DISABLED)
         self.gui.status_label.config(text="Status: Stopped")
 
@@ -108,14 +108,40 @@ class PacketProcessing:
             details.append(f"Source IP: {packet[IP].src}")
             details.append(f"Destination IP: {packet[IP].dst}")
             details.append(f"Protocol: {packet[IP].proto}")
+
         if packet.haslayer(TCP):
             details.append(f"Source Port: {packet[TCP].sport}")
             details.append(f"Destination Port: {packet[TCP].dport}")
+            if packet.haslayer(Raw):
+                try:
+                    payload = packet[Raw].load.decode(errors='ignore')
+                    if payload.startswith("GET") or payload.startswith("POST"):
+                        details.append(f"HTTP Payload: {payload}")
+                except UnicodeDecodeError:
+                    pass
+
         if packet.haslayer(UDP):
             details.append(f"Source Port: {packet[UDP].sport}")
             details.append(f"Destination Port: {packet[UDP].dport}")
+            if packet.haslayer(DNS):
+                dns = packet[DNS]
+                details.append(f"DNS Query: {dns.qd.qname.decode()}")
+
+        if packet.haslayer(ARP):
+            arp = packet[ARP]
+            details.append(f"ARP Operation: {'Request' if arp.op == 1 else 'Reply'}")
+            details.append(f"ARP Source MAC: {arp.hwsrc}")
+            details.append(f"ARP Target MAC: {arp.hwdst}")
+
+        if packet.haslayer(ICMP):
+            icmp = packet[ICMP]
+            details.append(f"ICMP Type: {icmp.type}")
+            details.append(f"ICMP Code: {icmp.code}")
+
         if packet.haslayer(Raw):
-            details.append(f"Payload: {packet[Raw].load.decode(errors='ignore')}")
+            payload = packet[Raw].load.decode(errors='ignore')
+            details.append(f"Payload: {payload}")
+
         return "\n".join(details)
 
     def update_graph(self, ax):
