@@ -3,6 +3,7 @@ import time
 from scapy.all import sniff, IP, TCP, UDP, Raw, DNS, ARP, ICMP
 from filters import get_filter_string
 import tkinter as tk
+from anomaly_detection import AnomalyDetector  # Import the anomaly detector
 
 class PacketProcessing:
     def __init__(self, gui):
@@ -14,6 +15,7 @@ class PacketProcessing:
         self.packet_sizes = []
         self.timestamps = []
         self.packet_summary_map = {}
+        self.anomaly_detector = AnomalyDetector(threshold=2.0)  # Initialize the anomaly detector
 
     def start_sniffing(self):
         self.sniffing = True
@@ -73,9 +75,15 @@ class PacketProcessing:
         if self.sniffing:
             self.packet_count += 1
             if packet.haslayer(Raw):
-                self.packet_sizes.append(len(packet[Raw].load))
+                packet_size = len(packet[Raw].load)
+                self.packet_sizes.append(packet_size)
                 self.timestamps.append(time.time())
-            
+                
+                # Detect anomalies
+                anomaly_message = self.anomaly_detector.process_packet(packet_size)
+                if anomaly_message:
+                    self.gui.log_message(anomaly_message)
+
             log_message = self.get_packet_summary(packet)
             self.packet_summary_map[log_message] = packet  
             self.gui.root.after(0, self.gui.log_message, log_message)
@@ -83,7 +91,6 @@ class PacketProcessing:
 
             self.data_rate = sum(self.packet_sizes[-10:]) / 10 if self.packet_sizes else 0
             self.gui.root.after(0, self.update_traffic_stats)
-
 
     def update_traffic_stats(self):
         self.gui.packet_count_label.config(text=f"Packet Count: {self.packet_count}")
@@ -104,58 +111,42 @@ class PacketProcessing:
 
     def decode_packet(self, packet):
         details = []
-    
-    # Check for IP layer
         if packet.haslayer(IP):
             details.append(f"Source IP: {packet[IP].src}")
             details.append(f"Destination IP: {packet[IP].dst}")
             details.append(f"Protocol: {packet[IP].proto}")
-
-    # Check for TCP layer
         if packet.haslayer(TCP):
             details.append(f"Source Port: {packet[TCP].sport}")
             details.append(f"Destination Port: {packet[TCP].dport}")
-        if packet.haslayer(Raw):
-            try:
-                payload = packet[Raw].load.decode(errors='ignore')
-                if payload.startswith("GET") or payload.startswith("POST"):
-                    details.append(f"HTTP Payload: {payload}")
-            except UnicodeDecodeError:
-                pass
-
-    # Check for UDP layer
+            if packet.haslayer(Raw):
+                try:
+                    payload = packet[Raw].load.decode(errors='ignore')
+                    if payload.startswith("GET") or payload.startswith("POST"):
+                        details.append(f"HTTP Payload: {payload}")
+                except UnicodeDecodeError:
+                    pass
         if packet.haslayer(UDP):
             details.append(f"Source Port: {packet[UDP].sport}")
             details.append(f"Destination Port: {packet[UDP].dport}")
-        
-        # Check for DNS layer in UDP
-        if packet.haslayer(DNS):
-            dns = packet[DNS]
-            if dns.qd:
-                details.append(f"DNS Query: {dns.qd.qname.decode(errors='ignore')}")
-            else:
-                details.append("DNS Query: No query section")
-
-    # Check for ARP layer
+            if packet.haslayer(DNS):
+                dns = packet[DNS]
+                if dns.qd:
+                    details.append(f"DNS Query: {dns.qd.qname.decode(errors='ignore')}")
+                else:
+                    details.append("DNS Query: No query section")
         if packet.haslayer(ARP):
             arp = packet[ARP]
             details.append(f"ARP Operation: {'Request' if arp.op == 1 else 'Reply'}")
             details.append(f"ARP Source MAC: {arp.hwsrc}")
             details.append(f"ARP Target MAC: {arp.hwdst}")
-
-    # Check for ICMP layer
         if packet.haslayer(ICMP):
             icmp = packet[ICMP]
             details.append(f"ICMP Type: {icmp.type}")
             details.append(f"ICMP Code: {icmp.code}")
-
-    # Check for Raw layer
         if packet.haslayer(Raw):
             payload = packet[Raw].load.decode(errors='ignore')
             details.append(f"Payload: {payload}")
-
         return "\n".join(details)
-
 
     def update_graph(self, ax):
         ax.clear()
