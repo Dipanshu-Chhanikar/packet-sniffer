@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
 from packet_processing import PacketProcessing
+from filters import FILTERS
 
 class PacketSnifferGUI:
     def __init__(self, root):
@@ -71,6 +72,9 @@ class PacketSnifferGUI:
 
         self.log_area.config(yscrollcommand=self.log_scrollbar.set)
 
+        # Bind mouse click event to the log_area
+        self.log_area.bind("<Button-1>", self.on_log_click)
+
         self.detail_frame = ttk.LabelFrame(self.root, text="Packet Details")
         self.detail_frame.pack(pady=10, fill="both", expand="yes")
 
@@ -130,3 +134,23 @@ class PacketSnifferGUI:
 
     def update_graph(self, frame):
         self.packet_processing.update_graph(self.ax)
+
+    def on_log_click(self, event):
+        index = self.log_area.index("@%s,%s" % (event.x, event.y))
+    
+        line_number = int(index.split('.')[0])
+
+        line_text = self.log_area.get(f"{line_number}.0", f"{line_number}.end")
+    
+        if hasattr(self, 'highlighted_line'):
+            self.log_area.tag_remove("highlight", f"{self.highlighted_line}.0", f"{self.highlighted_line}.end")
+    
+        self.log_area.tag_add("highlight", f"{line_number}.0", f"{line_number}.end")
+        self.log_area.tag_config("highlight", background="yellow")
+    
+        self.highlighted_line = line_number
+    
+        packet_data = self.packet_processing.get_packet_by_summary(line_text) 
+        if packet_data:
+            self.show_packet_details(packet_data)
+

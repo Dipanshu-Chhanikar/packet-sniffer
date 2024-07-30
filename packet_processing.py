@@ -13,6 +13,7 @@ class PacketProcessing:
         self.error_count = 0
         self.packet_sizes = []
         self.timestamps = []
+        self.packet_summary_map = {}
 
     def start_sniffing(self):
         self.sniffing = True
@@ -76,15 +77,13 @@ class PacketProcessing:
                 self.timestamps.append(time.time())
             
             log_message = self.get_packet_summary(packet)
-            # Schedule the log_message method to be called on the main thread
+            self.packet_summary_map[log_message] = packet  
             self.gui.root.after(0, self.gui.log_message, log_message)
-            # Schedule the show_packet_details method to be called on the main thread
             self.gui.root.after(0, self.gui.show_packet_details, packet)
 
-            # Update traffic statistics
             self.data_rate = sum(self.packet_sizes[-10:]) / 10 if self.packet_sizes else 0
-            # Schedule the update of traffic statistics on the main thread
             self.gui.root.after(0, self.update_traffic_stats)
+
 
     def update_traffic_stats(self):
         self.gui.packet_count_label.config(text=f"Packet Count: {self.packet_count}")
@@ -128,3 +127,6 @@ class PacketProcessing:
             ax.set_title('Network Traffic')
             ax.legend()
         self.gui.canvas.draw()
+
+    def get_packet_by_summary(self, summary):
+        return self.packet_summary_map.get(summary)
