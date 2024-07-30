@@ -6,7 +6,8 @@ FILTERS = {
     "UDP": "udp",
     "IP": "ip",
     "FTP": "tcp port 21",
+    "ALL": ""
 }
 
-def get_filter_string(option):
-    return FILTERS.get(option, "")
+def get_filter_string(filter_option):
+    return FILTERS.get(filter_option, "")

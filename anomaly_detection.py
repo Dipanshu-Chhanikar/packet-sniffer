@@ -1,31 +1,27 @@
-# anomaly_detection.py
 import numpy as np
+from scapy.all import IP, TCP, UDP
 
 class AnomalyDetector:
     def __init__(self, threshold=2.0):
         self.threshold = threshold
-        self.packet_sizes = []
-        self.mean_size = 0
-        self.std_dev_size = 0
+        self.packet_stats = []
 
-    def update_statistics(self, packet_size):
-        self.packet_sizes.append(packet_size)
-        if len(self.packet_sizes) > 1:
-            self.mean_size = np.mean(self.packet_sizes)
-            self.std_dev_size = np.std(self.packet_sizes)
-        else:
-            self.mean_size = packet_size
-            self.std_dev_size = 0
+    def is_anomalous_packet(self, packet):
+        if IP in packet:
+            if TCP in packet:
+                length = len(packet[TCP])
+            elif UDP in packet:
+                length = len(packet[UDP])
+            else:
+                length = len(packet[IP])
 
-    def detect_anomaly(self, packet_size):
-        if self.std_dev_size <= 0:
-            return False  # Not enough data to detect anomalies or standard deviation is zero
+            self.packet_stats.append(length)
+            mean_length = np.mean(self.packet_stats)
+            std_length = np.std(self.packet_stats)
 
-        z_score = (packet_size - self.mean_size) / self.std_dev_size
-        return abs(z_score) > self.threshold
+            if std_length == 0:
+                return False
 
-    def process_packet(self, packet_size):
-        self.update_statistics(packet_size)
-        if self.detect_anomaly(packet_size):
-            return "Anomaly detected: unusual packet size"
-        return None
+            z_score = (length - mean_length) / std_length
+            return abs(z_score) > self.threshold
+        return False
