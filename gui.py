@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from scapy.all import sniff, IP, TCP, UDP, Raw, DNS
+from scapy.all import sniff, IP, TCP, UDP, Raw, DNS, get_if_list
 from scapy.layers.http import HTTPRequest, HTTPResponse
 import threading
 import matplotlib.pyplot as plt
@@ -113,6 +113,9 @@ class PacketSnifferGUI:
         
         self.ani = FuncAnimation(self.fig, self.update_graph, interval=1000, cache_frame_data=False)
 
+        # Hardcoded Interface
+        self.interface = "Wi-Fi"
+
     def start_sniffing(self):
         self.sniffing = True
         self.packet_count = 0
@@ -134,9 +137,18 @@ class PacketSnifferGUI:
         self.status_label.config(text="Status: Stopped")
 
     def sniff_packets(self):
+        if not self.interface or self.interface == r'\Device\NPF_Loopback':
+            self.log_message("Invalid or Loopback interface selected.")
+            self.stop_sniffing()
+            return
+
         filter_option = self.filter_var.get()
         filter_str = self.get_filter_string(filter_option)
-        sniff(prn=self.packet_callback, store=0, filter=filter_str, stop_filter=lambda x: not self.sniffing)
+        try:
+            sniff(iface=self.interface, prn=self.packet_callback, store=0, filter=filter_str, stop_filter=lambda x: not self.sniffing)
+        except OSError as e:
+            self.log_message(f"Error opening adapter: {e}")
+            self.stop_sniffing()
 
     def get_filter_string(self, option):
         if option == "HTTP":
