@@ -5,16 +5,17 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
 from packet_processing import PacketProcessing
-from filters import FILTERS
 import psutil
+from scapy.all import sniff
 
 class PacketSnifferGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Advanced Packet Sniffer Dashboard")
-
         self.packet_processing = PacketProcessing(self)
         self.create_widgets()
+        self.resource_monitoring_id = None
+        self.sniffing = False
 
     def create_widgets(self):
         # Create main frames
@@ -118,9 +119,6 @@ class PacketSnifferGUI:
         self.memory_label = ttk.Label(self.resource_frame, text="Memory Usage: 0%")
         self.memory_label.pack(pady=5)
 
-        # Start resource monitoring
-        self.monitor_resources()
-
         # Status bar
         self.status_label = ttk.Label(self.root, text="Status: Ready")
         self.status_label.grid(row=4, column=0, columnspan=3, pady=5, sticky="ew")
@@ -128,18 +126,33 @@ class PacketSnifferGUI:
         self.interface = "Wi-Fi"
 
     def monitor_resources(self):
-        if hasattr(self, 'resource_frame'):
+        if self.sniffing:
             cpu_usage = psutil.cpu_percent()
             memory_info = psutil.virtual_memory()
             self.cpu_label.config(text=f"CPU Usage: {cpu_usage}%")
             self.memory_label.config(text=f"Memory Usage: {memory_info.percent}%")
-            self.root.after(5000, self.monitor_resources)  # Update every 5 seconds
+            self.resource_monitoring_id = self.root.after(5000, self.monitor_resources)
 
     def start_sniffing(self):
-        self.packet_processing.start_sniffing()
+        if not self.sniffing:
+            self.sniffing = True
+            self.packet_processing.start_sniffing()
+            self.start_button.config(state=tk.DISABLED)
+            self.stop_button.config(state=tk.NORMAL)
+            self.status_label.config(text="Status: Sniffing")
+            self.monitor_resources()
 
     def stop_sniffing(self):
-        self.packet_processing.stop_sniffing()
+        if self.sniffing:
+            self.sniffing = False
+            self.packet_processing.stop_sniffing()
+            self.start_button.config(state=tk.NORMAL)
+            self.stop_button.config(state=tk.DISABLED)
+            self.status_label.config(text="Status: Stopped")
+            
+            if self.resource_monitoring_id:
+                self.root.after_cancel(self.resource_monitoring_id)
+                self.resource_monitoring_id = None
 
     def apply_custom_filter(self):
         self.packet_processing.apply_custom_filter(self.custom_filter_var.get())
@@ -148,7 +161,7 @@ class PacketSnifferGUI:
         search_text = self.search_var.get()
         self.packet_processing.search_logs(search_text)
 
-    def update_graph(self):
+    def update_graph(self, frame=None):
         self.packet_processing.update_graph(self.ax, self.graph_type_var.get())
         self.canvas.draw()
 
@@ -156,6 +169,7 @@ class PacketSnifferGUI:
         self.log_area.config(state=tk.NORMAL)
         self.log_area.insert(tk.END, message + "\n")
         self.log_area.config(state=tk.DISABLED)
+        self.log_area.yview(tk.END)
 
     def show_packet_details(self, packet):
         details = self.packet_processing.decode_packet(packet)
@@ -163,10 +177,6 @@ class PacketSnifferGUI:
         self.detail_area.delete(1.0, tk.END)
         self.detail_area.insert(tk.END, details)
         self.detail_area.config(state=tk.DISABLED)
-
-    def update_graph(self, frame):
-        self.packet_processing.update_graph(self.ax, self.graph_type_var.get())
-        self.canvas.draw()
 
     def on_log_click(self, event):
         index = self.log_area.index("@%s,%s" % (event.x, event.y))
@@ -180,3 +190,8 @@ class PacketSnifferGUI:
         packet_data = self.packet_processing.get_packet_by_summary(line_text)
         if packet_data:
             self.show_packet_details(packet_data)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = PacketSnifferGUI(root)
+    root.mainloop()

@@ -96,24 +96,27 @@ class PacketProcessing:
 
     def update_graph(self, ax, graph_type):
         ax.clear()
+        packet_sizes_list = list(self.packet_sizes)  # Convert deque to list
+
         if graph_type == "Line":
-            ax.plot(self.timestamps, self.packet_sizes)
+            ax.plot(self.timestamps, packet_sizes_list)
         elif graph_type == "Bar":
-            ax.bar(self.timestamps, self.packet_sizes)
+            ax.bar(self.timestamps, packet_sizes_list)
         elif graph_type == "Scatter":
-            ax.scatter(self.timestamps, self.packet_sizes)
+            ax.scatter(self.timestamps, packet_sizes_list)
         elif graph_type == "Histogram":
-            ax.hist(self.packet_sizes, bins=30)
+            ax.hist(packet_sizes_list, bins=30)
         elif graph_type == "Boxplot":
-            ax.boxplot(self.packet_sizes)
+            ax.boxplot(packet_sizes_list)
         elif graph_type == "Pie":
-            if len(self.packet_sizes) > 0:
-                sizes = [sum(self.packet_sizes[i:i+10]) for i in range(0, len(self.packet_sizes), 10)]
+            if len(packet_sizes_list) > 0:
+                sizes = [sum(packet_sizes_list[i:i+10]) for i in range(0, len(packet_sizes_list), 10)]
                 ax.pie(sizes, labels=[f'Chunk {i}' for i in range(len(sizes))], autopct='%1.1f%%')
 
         ax.set_title(f"Packet Sizes - {graph_type}")
         ax.set_xlabel("Time (s)" if graph_type not in ["Histogram", "Boxplot", "Pie"] else "")
         ax.set_ylabel("Packet Size (bytes)" if graph_type not in ["Histogram", "Boxplot", "Pie"] else "")
+
 
     def get_packet_by_summary(self, summary):
         return self.packet_summary_map.get(summary, None)
