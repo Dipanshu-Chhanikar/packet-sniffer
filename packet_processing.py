@@ -1,9 +1,11 @@
 import threading
 import time
-from scapy.all import sniff
+import psutil  
+from scapy.all import sniff, IP, TCP, UDP, Raw, DNS, ARP, ICMP
 from filters import get_filter_string
 import tkinter as tk
 from anomaly_detection import AnomalyDetector
+from collections import deque  
 
 class PacketProcessing:
     def __init__(self, gui):
@@ -12,24 +14,28 @@ class PacketProcessing:
         self.packet_count = 0
         self.data_rate = 0
         self.error_count = 0
-        self.packet_sizes = []
-        self.timestamps = []
+        self.packet_sizes = deque(maxlen=1000)  
+        self.timestamps = deque(maxlen=1000)  
         self.packet_summary_map = {}
         self.anomaly_detector = AnomalyDetector(threshold=2.0)
+        self.resource_monitoring_interval = 5  
 
     def start_sniffing(self):
         self.sniffing = True
         self.packet_count = 0
         self.data_rate = 0
         self.error_count = 0
-        self.packet_sizes = []
-        self.timestamps = []
+        self.packet_sizes.clear()
+        self.timestamps.clear()
         self.gui.start_button.config(state=tk.DISABLED)
         self.gui.stop_button.config(state=tk.NORMAL)
         self.gui.status_label.config(text="Status: Sniffing...")
         
         sniff_thread = threading.Thread(target=self.sniff_packets)
         sniff_thread.start()
+        
+        resource_monitoring_thread = threading.Thread(target=self.monitor_resources)
+        resource_monitoring_thread.start()
 
     def stop_sniffing(self):
         self.sniffing = False
@@ -49,9 +55,13 @@ class PacketProcessing:
 
     def process_packet(self, packet):
         self.packet_count += 1
+        current_time = time.time()
         self.packet_sizes.append(len(packet))
-        self.timestamps.append(time.time())
-        self.data_rate = self.packet_sizes[-1] / (self.timestamps[-1] - self.timestamps[0] + 1)
+        self.timestamps.append(current_time)
+        if len(self.timestamps) > 1:
+            self.data_rate = self.packet_sizes[-1] / (self.timestamps[-1] - self.timestamps[0])
+        else:
+            self.data_rate = 0
 
         summary = packet.summary()
         self.packet_summary_map[summary] = packet
@@ -88,34 +98,29 @@ class PacketProcessing:
         ax.clear()
         if graph_type == "Line":
             ax.plot(self.timestamps, self.packet_sizes)
-            ax.set_title("Packet Sizes over Time")
-            ax.set_xlabel("Time (s)")
-            ax.set_ylabel("Packet Size (bytes)")
         elif graph_type == "Bar":
             ax.bar(self.timestamps, self.packet_sizes)
-            ax.set_title("Packet Sizes over Time")
-            ax.set_xlabel("Time (s)")
-            ax.set_ylabel("Packet Size (bytes)")
         elif graph_type == "Scatter":
             ax.scatter(self.timestamps, self.packet_sizes)
-            ax.set_title("Packet Sizes over Time")
-            ax.set_xlabel("Time (s)")
-            ax.set_ylabel("Packet Size (bytes)")
         elif graph_type == "Histogram":
             ax.hist(self.packet_sizes, bins=30)
-            ax.set_title("Packet Size Distribution")
-            ax.set_xlabel("Packet Size (bytes)")
-            ax.set_ylabel("Frequency")
         elif graph_type == "Boxplot":
             ax.boxplot(self.packet_sizes)
-            ax.set_title("Packet Size Boxplot")
-            ax.set_ylabel("Packet Size (bytes)")
         elif graph_type == "Pie":
-            sizes = [sum(self.packet_sizes) / len(self.packet_sizes)] * len(self.packet_sizes)
-            labels = [f"Packet {i+1}" for i in range(len(self.packet_sizes))]
-            ax.pie(sizes, labels=labels, autopct='%1.1f%%')
-            ax.set_title("Packet Size Distribution")
-        ax.figure.canvas.draw()
+            if len(self.packet_sizes) > 0:
+                sizes = [sum(self.packet_sizes[i:i+10]) for i in range(0, len(self.packet_sizes), 10)]
+                ax.pie(sizes, labels=[f'Chunk {i}' for i in range(len(sizes))], autopct='%1.1f%%')
+
+        ax.set_title(f"Packet Sizes - {graph_type}")
+        ax.set_xlabel("Time (s)" if graph_type not in ["Histogram", "Boxplot", "Pie"] else "")
+        ax.set_ylabel("Packet Size (bytes)" if graph_type not in ["Histogram", "Boxplot", "Pie"] else "")
 
     def get_packet_by_summary(self, summary):
         return self.packet_summary_map.get(summary, None)
+
+    def monitor_resources(self):
+        while self.sniffing:
+            cpu_usage = psutil.cpu_percent()
+            memory_info = psutil.virtual_memory()
+            self.gui.log_message(f"Resource Usage - CPU: {cpu_usage}%, Memory: {memory_info.percent}%")
+            time.sleep(self.resource_monitoring_interval)

@@ -6,6 +6,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
 from packet_processing import PacketProcessing
 from filters import FILTERS
+import psutil
 
 class PacketSnifferGUI:
     def __init__(self, root):
@@ -32,6 +33,9 @@ class PacketSnifferGUI:
         self.detail_frame = ttk.LabelFrame(self.root, text="Packet Details")
         self.detail_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
+        self.resource_frame = ttk.LabelFrame(self.root, text="Resource Monitoring")
+        self.resource_frame.grid(row=0, column=2, rowspan=2, padx=10, pady=10, sticky="nsew")
+
         # Control frame widgets
         self.start_button = ttk.Button(self.control_frame, text="Start Sniffing", command=self.start_sniffing)
         self.start_button.grid(row=0, column=0, padx=5, pady=5)
@@ -56,10 +60,10 @@ class PacketSnifferGUI:
         self.custom_filter_entry = ttk.Entry(self.control_frame, textvariable=self.custom_filter_var)
         self.custom_filter_entry.grid(row=0, column=5, padx=5, pady=5)
 
-        self.apply_filter_button = ttk.Button(self.control_frame, text="Apply Custom Filter", command=self.apply_custom_filter)
+        self.apply_filter_button = ttk.Button(self.control_frame, text="Apply Filter", command=self.apply_custom_filter)
         self.apply_filter_button.grid(row=0, column=6, padx=5, pady=5)
 
-        self.search_label = ttk.Label(self.control_frame, text="Search:")
+        self.search_label = ttk.Label(self.control_frame, text="Search Logs:")
         self.search_label.grid(row=1, column=0, padx=5, pady=5)
 
         self.search_var = tk.StringVar()
@@ -69,17 +73,14 @@ class PacketSnifferGUI:
         self.search_button = ttk.Button(self.control_frame, text="Search", command=self.search_logs)
         self.search_button.grid(row=1, column=2, padx=5, pady=5)
 
-        self.graph_type_label = ttk.Label(self.control_frame, text="Graph Type:")
-        self.graph_type_label.grid(row=1, column=3, padx=5, pady=5)
-
         self.graph_type_var = tk.StringVar()
         self.graph_type_var.set("Line")
         self.graph_type_options = ttk.Combobox(self.control_frame, textvariable=self.graph_type_var)
         self.graph_type_options['values'] = ("Line", "Bar", "Scatter", "Histogram", "Boxplot", "Pie")
-        self.graph_type_options.grid(row=1, column=4, padx=5, pady=5)
+        self.graph_type_options.grid(row=1, column=3, padx=5, pady=5)
 
         self.update_graph_button = ttk.Button(self.control_frame, text="Update Graph", command=self.update_graph)
-        self.update_graph_button.grid(row=1, column=5, padx=5, pady=5)
+        self.update_graph_button.grid(row=1, column=4, padx=5, pady=5)
 
         # Traffic statistics frame widgets
         self.packet_count_label = ttk.Label(self.stats_frame, text="Packet Count: 0")
@@ -110,11 +111,29 @@ class PacketSnifferGUI:
         self.detail_area = tk.Text(self.detail_frame, state=tk.DISABLED, width=100, height=10)
         self.detail_area.pack(fill=tk.BOTH, expand=True)
 
+        # Resource monitoring frame widgets
+        self.cpu_label = ttk.Label(self.resource_frame, text="CPU Usage: 0%")
+        self.cpu_label.pack(pady=5)
+
+        self.memory_label = ttk.Label(self.resource_frame, text="Memory Usage: 0%")
+        self.memory_label.pack(pady=5)
+
+        # Start resource monitoring
+        self.monitor_resources()
+
         # Status bar
         self.status_label = ttk.Label(self.root, text="Status: Ready")
-        self.status_label.grid(row=4, column=0, columnspan=2, pady=5, sticky="ew")
+        self.status_label.grid(row=4, column=0, columnspan=3, pady=5, sticky="ew")
 
         self.interface = "Wi-Fi"
+
+    def monitor_resources(self):
+        if hasattr(self, 'resource_frame'):
+            cpu_usage = psutil.cpu_percent()
+            memory_info = psutil.virtual_memory()
+            self.cpu_label.config(text=f"CPU Usage: {cpu_usage}%")
+            self.memory_label.config(text=f"Memory Usage: {memory_info.percent}%")
+            self.root.after(5000, self.monitor_resources)  # Update every 5 seconds
 
     def start_sniffing(self):
         self.packet_processing.start_sniffing()
@@ -161,4 +180,3 @@ class PacketSnifferGUI:
         packet_data = self.packet_processing.get_packet_by_summary(line_text)
         if packet_data:
             self.show_packet_details(packet_data)
-
