@@ -6,6 +6,10 @@ from filters import get_filter_string
 import tkinter as tk
 from anomaly_detection import AnomalyDetector
 from collections import deque  
+import logging
+
+logging.basicConfig(filename='packet_sniffer.log', level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 class PacketProcessing:
     def __init__(self, gui):
@@ -18,66 +22,95 @@ class PacketProcessing:
         self.timestamps = deque(maxlen=1000)  
         self.packet_summary_map = {}
         self.anomaly_detector = AnomalyDetector(threshold=2.0)
-        self.resource_monitoring_interval = 5  
+        self.resource_monitoring_interval = 5   
 
     def start_sniffing(self):
-        self.sniffing = True
-        self.packet_count = 0
-        self.data_rate = 0
-        self.error_count = 0
-        self.packet_sizes.clear()
-        self.timestamps.clear()
-        self.gui.start_button.config(state=tk.DISABLED)
-        self.gui.stop_button.config(state=tk.NORMAL)
-        self.gui.status_label.config(text="Status: Sniffing...")
-        
-        sniff_thread = threading.Thread(target=self.sniff_packets)
-        sniff_thread.start()
-        
-        resource_monitoring_thread = threading.Thread(target=self.monitor_resources)
-        resource_monitoring_thread.start()
+        try:
+            self.sniffing = True
+            self.packet_count = 0
+            self.data_rate = 0
+            self.error_count = 0
+            self.packet_sizes.clear()
+            self.timestamps.clear()
+            self.gui.start_button.config(state=tk.DISABLED)
+            self.gui.stop_button.config(state=tk.NORMAL)
+            self.gui.status_label.config(text="Status: Sniffing...")
+            
+            sniff_thread = threading.Thread(target=self.sniff_packets)
+            sniff_thread.start()
+            
+            resource_monitoring_thread = threading.Thread(target=self.monitor_resources)
+            resource_monitoring_thread.start()
+
+        except Exception as e:
+            logging.error(f"Error starting sniffing: {e}")
+            self.gui.status_label.config(text="Status: Error starting sniffing.")
+            self.stop_sniffing()
 
     def stop_sniffing(self):
-        self.sniffing = False
-        self.gui.start_button.config(state=tk.NORMAL)
-        self.gui.stop_button.config(state=tk.DISABLED)
-        self.gui.status_label.config(text="Status: Stopped")
+        try:
+            self.sniffing = False
+            self.gui.start_button.config(state=tk.NORMAL)
+            self.gui.stop_button.config(state=tk.DISABLED)
+            self.gui.status_label.config(text="Status: Stopped")
+
+        except Exception as e:
+            logging.error(f"Error stopping sniffing: {e}")
+            self.gui.status_label.config(text="Status: Error stopping sniffing.")
 
     def sniff_packets(self):
-        if not self.gui.interface or self.gui.interface == r'\Device\NPF_Loopback':
-            self.gui.log_message("Invalid or Loopback interface selected.")
-            self.stop_sniffing()
-            return
+        try:
+            if not self.gui.interface or self.gui.interface == r'\Device\NPF_Loopback':
+                self.gui.log_message("Invalid or Loopback interface selected.")
+                self.stop_sniffing()
+                return
 
-        filter_option = self.gui.filter_var.get()
-        filter_str = get_filter_string(filter_option)
-        sniff(iface=self.gui.interface, prn=self.process_packet, stop_filter=lambda x: not self.sniffing, filter=filter_str)
+            filter_option = self.gui.filter_var.get()
+            filter_str = get_filter_string(filter_option)
+            sniff(iface=self.gui.interface, prn=self.process_packet, stop_filter=lambda x: not self.sniffing, filter=filter_str)
+
+        except Exception as e:
+            logging.error(f"Error during packet sniffing: {e}")
+            self.gui.status_label.config(text="Status: Error during packet sniffing.")
+            self.stop_sniffing()
 
     def process_packet(self, packet):
-        self.packet_count += 1
-        current_time = time.time()
-        self.packet_sizes.append(len(packet))
-        self.timestamps.append(current_time)
-        if len(self.timestamps) > 1:
-            self.data_rate = self.packet_sizes[-1] / (self.timestamps[-1] - self.timestamps[0])
-        else:
-            self.data_rate = 0
+        try:
+            self.packet_count += 1
+            current_time = time.time()
+            self.packet_sizes.append(len(packet))
+            self.timestamps.append(current_time)
+            if len(self.timestamps) > 1:
+                self.data_rate = self.packet_sizes[-1] / (self.timestamps[-1] - self.timestamps[0])
+            else:
+                self.data_rate = 0
 
-        summary = packet.summary()
-        self.packet_summary_map[summary] = packet
-        self.gui.log_message(summary)
-        self.gui.packet_count_label.config(text=f"Packet Count: {self.packet_count}")
-        self.gui.data_rate_label.config(text=f"Data Rate: {self.data_rate:.2f} B/s")
+            summary = packet.summary()
+            self.packet_summary_map[summary] = packet
+            self.gui.log_message(summary)
+            self.gui.packet_count_label.config(text=f"Packet Count: {self.packet_count}")
+            self.gui.data_rate_label.config(text=f"Data Rate: {self.data_rate:.2f} B/s")
 
-        is_anomalous = self.anomaly_detector.is_anomalous_packet(packet)
-        if is_anomalous:
-            self.gui.log_message(f"ALERT: Anomalous packet detected! {summary}")
+            is_anomalous = self.anomaly_detector.is_anomalous_packet(packet)
+            if is_anomalous:
+                self.gui.log_message(f"ALERT: Anomalous packet detected! {summary}")
+
+        except Exception as e:
+            logging.error(f"Error processing packet: {e}")
+            self.error_count += 1
+            self.gui.error_count_label.config(text=f"Error Count: {self.error_count}")
 
     def apply_custom_filter(self, custom_filter):
-        self.stop_sniffing()
-        self.sniffing = True
-        sniff_thread = threading.Thread(target=sniff, kwargs={'iface': self.gui.interface, 'prn': self.process_packet, 'filter': custom_filter, 'stop_filter': lambda x: not self.sniffing})
-        sniff_thread.start()
+        try:
+            self.stop_sniffing()
+            self.sniffing = True
+            sniff_thread = threading.Thread(target=sniff, kwargs={'iface': self.gui.interface, 'prn': self.process_packet, 'filter': custom_filter, 'stop_filter': lambda x: not self.sniffing})
+            sniff_thread.start()
+
+        except Exception as e:
+            logging.error(f"Error applying custom filter: {e}")
+            self.gui.status_label.config(text="Status: Error applying custom filter.")
+            self.stop_sniffing()
 
     def search_logs(self, search_text):
         self.gui.log_area.tag_remove("highlight", "1.0", tk.END)
@@ -122,8 +155,13 @@ class PacketProcessing:
         return self.packet_summary_map.get(summary, None)
 
     def monitor_resources(self):
-        while self.sniffing:
-            cpu_usage = psutil.cpu_percent()
-            memory_info = psutil.virtual_memory()
-            self.gui.log_message(f"Resource Usage - CPU: {cpu_usage}%, Memory: {memory_info.percent}%")
-            time.sleep(self.resource_monitoring_interval)
+        try:
+            while self.sniffing:
+                cpu_usage = psutil.cpu_percent()
+                memory_info = psutil.virtual_memory()
+                self.gui.log_message(f"Resource Usage - CPU: {cpu_usage}%, Memory: {memory_info.percent}%")
+                time.sleep(self.resource_monitoring_interval)
+
+        except Exception as e:
+            logging.error(f"Error monitoring resources: {e}")
+            self.gui.status_label.config(text="Status: Error monitoring resources.")

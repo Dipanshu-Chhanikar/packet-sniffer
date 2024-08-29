@@ -6,16 +6,26 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
 from packet_processing import PacketProcessing
 import psutil
+import logging
 from scapy.all import sniff
+
+logging.basicConfig(filename='packet_sniffer.log', level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 class PacketSnifferGUI:
     def __init__(self, root):
-        self.root = root
-        self.root.title("Advanced Packet Sniffer Dashboard")
-        self.packet_processing = PacketProcessing(self)
-        self.create_widgets()
-        self.resource_monitoring_id = None
-        self.sniffing = False
+        try:
+            self.root = root
+            self.root.title("Advanced Packet Sniffer Dashboard")
+            self.packet_processing = PacketProcessing(self)
+            self.create_widgets()
+            self.resource_monitoring_id = None
+            self.sniffing = False
+
+        except Exception as e:
+            logging.error(f"Error initializing GUI: {e}")
+            self.root.destroy()
 
     def create_widgets(self):
         # Create main frames
@@ -134,25 +144,36 @@ class PacketSnifferGUI:
             self.resource_monitoring_id = self.root.after(5000, self.monitor_resources)
 
     def start_sniffing(self):
-        if not self.sniffing:
-            self.sniffing = True
-            self.packet_processing.start_sniffing()
-            self.start_button.config(state=tk.DISABLED)
-            self.stop_button.config(state=tk.NORMAL)
-            self.status_label.config(text="Status: Sniffing")
-            self.monitor_resources()
+        try:
+            if not self.sniffing:
+                self.sniffing = True
+                self.packet_processing.start_sniffing()
+                self.start_button.config(state=tk.DISABLED)
+                self.stop_button.config(state=tk.NORMAL)
+                self.status_label.config(text="Status: Sniffing")
+                self.monitor_resources()
+
+        except Exception as e:
+            logging.error(f"Error starting sniffing in GUI: {e}")
+            self.status_label.config(text="Status: Error starting sniffing.")
+            self.stop_sniffing()
 
     def stop_sniffing(self):
-        if self.sniffing:
-            self.sniffing = False
-            self.packet_processing.stop_sniffing()
-            self.start_button.config(state=tk.NORMAL)
-            self.stop_button.config(state=tk.DISABLED)
-            self.status_label.config(text="Status: Stopped")
-            
-            if self.resource_monitoring_id:
-                self.root.after_cancel(self.resource_monitoring_id)
-                self.resource_monitoring_id = None
+        try:
+            if self.sniffing:
+                self.sniffing = False
+                self.packet_processing.stop_sniffing()
+                self.start_button.config(state=tk.NORMAL)
+                self.stop_button.config(state=tk.DISABLED)
+                self.status_label.config(text="Status: Stopped")
+
+                if self.resource_monitoring_id:
+                    self.root.after_cancel(self.resource_monitoring_id)
+                    self.resource_monitoring_id = None
+
+        except Exception as e:
+            logging.error(f"Error stopping sniffing in GUI: {e}")
+            self.status_label.config(text="Status: Error stopping sniffing.")
 
     def apply_custom_filter(self):
         self.packet_processing.apply_custom_filter(self.custom_filter_var.get())
