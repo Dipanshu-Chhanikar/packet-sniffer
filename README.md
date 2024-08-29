@@ -61,8 +61,8 @@ Make sure you have the following installed:
    ```bash
    python main.py
 
-```markdown
-![GUI Screenshot](ss.jpg)
+## GUI Screenshot
+![GUI Screenshot](https://github.com/Dipanshu-Chhanikar/packet-sniffer/raw/main/ss.jpg)
 
 ### Connect with Me
 If you have any questions, feedback, or would like to collaborate, feel free to connect with me on [LinkedIn](https://www.linkedin.com/in/dipanshu-chhanikar13)
