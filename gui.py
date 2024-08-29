@@ -135,6 +135,18 @@ class PacketSnifferGUI:
 
         self.interface = "Wi-Fi"
 
+        # Anomalies frame widgets
+        self.anomaly_frame = ttk.LabelFrame(self.root, text="Detected Anomalies")
+        self.anomaly_frame.grid(row=1, column=2, rowspan=2, padx=10, pady=10, sticky="nsew")
+
+        self.anomaly_area = tk.Text(self.anomaly_frame, state=tk.DISABLED, width=50, height=10)
+        self.anomaly_area.pack(fill=tk.BOTH, expand=True)
+
+        self.anomaly_scrollbar = ttk.Scrollbar(self.anomaly_frame, orient="vertical", command=self.anomaly_area.yview)
+        self.anomaly_scrollbar.pack(side=tk.RIGHT, fill="y")
+        self.anomaly_area.config(yscrollcommand=self.anomaly_scrollbar.set)
+
+
     def monitor_resources(self):
         if self.sniffing:
             cpu_usage = psutil.cpu_percent()
@@ -211,6 +223,13 @@ class PacketSnifferGUI:
         packet_data = self.packet_processing.get_packet_by_summary(line_text)
         if packet_data:
             self.show_packet_details(packet_data)
+
+    def log_anomaly(self, anomaly_message):
+        self.anomaly_area.config(state=tk.NORMAL)
+        self.anomaly_area.insert(tk.END, anomaly_message + "\n")
+        self.anomaly_area.config(state=tk.DISABLED)
+        self.anomaly_area.yview(tk.END)
+
 
 if __name__ == "__main__":
     root = tk.Tk()

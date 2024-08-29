@@ -77,9 +77,10 @@ class PacketProcessing:
     def process_packet(self, packet):
         try:
             self.packet_count += 1
-            current_time = time.time()
+            current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
             self.packet_sizes.append(len(packet))
-            self.timestamps.append(current_time)
+            self.timestamps.append(time.time())
+
             if len(self.timestamps) > 1:
                 self.data_rate = self.packet_sizes[-1] / (self.timestamps[-1] - self.timestamps[0])
             else:
@@ -93,7 +94,9 @@ class PacketProcessing:
 
             is_anomalous = self.anomaly_detector.is_anomalous_packet(packet)
             if is_anomalous:
-                self.gui.log_message(f"ALERT: Anomalous packet detected! {summary}")
+                anomaly_message = f"ALERT: Anomalous packet detected! {summary} at {current_time}"
+                self.gui.log_anomaly(anomaly_message)
+                self.gui.log_message(anomaly_message)
 
         except Exception as e:
             logging.error(f"Error processing packet: {e}")
